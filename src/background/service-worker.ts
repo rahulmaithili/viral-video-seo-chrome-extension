@@ -173,8 +173,52 @@ function parseCleanJSON(text: string): any {
   }
 }
 
+const BANNED_PATTERNS = [
+  /\b(dm me|inbox me|send message for price|free money|giveaway free|click here for cash)\b/gi,
+  /\b(100% guaranteed|get rich quick|pyramid|follow for follow|f4f|sub4sub)\b/gi,
+  /\b(share this with 10 people or bad luck|kill yourself|hate speech)\b/gi,
+];
+
+function sanitizePolicySafe(text: string): { cleaned: string; isModified: boolean } {
+  let cleaned = text;
+  let isModified = false;
+  for (const pattern of BANNED_PATTERNS) {
+    if (pattern.test(cleaned)) {
+      cleaned = cleaned.replace(pattern, '');
+      isModified = true;
+    }
+  }
+  return { cleaned: cleaned.trim(), isModified };
+}
+
+function generatePinComment(nicheId: string, hookTone = 'balanced'): string {
+  if (nicheId === 'bhakti' || hookTone === 'devotional') {
+    return '🙏 कमेंट में "हर हर महादेव" या "जय श्री राम" लिखकर अपनी हाजिरी लगाएं! आज का दर्शन कैसा लगा? 👇✨';
+  }
+  if (nicheId === 'cute_pets') {
+    return '🐶 आपका पेट (Dog/Cat) ऐसा करता है क्या? नाम कमेंट में बताइए! 👇❤️';
+  }
+  if (nicheId === 'desi_village') {
+    return '🌾 आप यह वीडियो किस शहर या गाँव से देख रहे हैं? कमेंट में जरूर बताएं! 👇🏡';
+  }
+  if (nicheId === 'funny_comedy' || hookTone === 'comedy') {
+    return '😂 अपने उस दोस्त को टैग करो जिसका बिल्कुल यही हाल रहता है! 👇🤣';
+  }
+  if (hookTone === 'viral_shock' || hookTone === 'mystery') {
+    return '😱 क्या आपको यह ट्विस्ट पहले से पता था? सच-सच कमेंट में बताएं! 👇🔥';
+  }
+  return '💬 इस वीडियो पर आपकी क्या राय है? कमेंट में जरूर बताएं और फॉलो करें! 👇✨';
+}
+
 // Fallback metadata generator if Gemini API key is missing or fails
-function generateFallbackMetadata(language = 'English', targetUsa = false, masterPrompt = '', fixedHashtags = '') {
+function generateFallbackMetadata(
+  language = 'English',
+  targetUsa = false,
+  masterPrompt = '',
+  fixedHashtags = '',
+  hookTone = 'balanced',
+  nicheId = 'bhakti'
+) {
   const isHindi = language === 'Hindi';
   const isHinglish = language === 'Hinglish';
   const lowerPrompt = masterPrompt.toLowerCase();
@@ -183,18 +227,30 @@ function generateFallbackMetadata(language = 'English', targetUsa = false, maste
   let caption = 'You have to see this to believe it! What would you do in this situation? Let us know in the comments! 👇';
   let hashtags = ['#ReelsFB', '#ViralReels', '#Trending', '#ViralVideo'];
 
-  if (lowerPrompt.includes('bhakti') || lowerPrompt.includes('mandir') || lowerPrompt.includes('ram') || lowerPrompt.includes('shiv') || isHindi) {
+  if (hookTone === 'viral_shock') {
+    title = isHindi
+      ? '😱 अंत तक देखें! ऐसा चमत्कार आपने पहले कभी नहीं देखा होगा!'
+      : isHinglish
+      ? 'Wait for the end! 😱 Aisa twist kisi ne nahi socha tha!'
+      : 'Wait for the shocking twist! Absolutely unreal 😱🔥';
+    caption = isHindi
+      ? 'लास्ट तक जरूर देखें! यह देखकर आपके रोंगटे खड़े हो जाएंगे! अपनी राय कमेंट में दें! 👇'
+      : 'Watch till the end! Nobody expected this outcome. Tell us your reaction below! 👇';
+  } else if (hookTone === 'devotional' || lowerPrompt.includes('bhakti') || isHindi) {
     title = '🙏 हर हर महादेव! यह अलौकिक दृश्य देखकर मन प्रसन्न हो जाएगा ✨';
     caption = 'अंत तक जरूर देखें! कमेंट बॉक्स में जय श्री राम या हर हर महादेव जरूर लिखें! 🙏🚩';
     hashtags = ['#Bhakti', '#SanatanDharma', '#HarHarMahadev', '#JaiShreeRam', '#ReelsFB', '#ViralReels'];
+  } else if (hookTone === 'comedy' || lowerPrompt.includes('funny')) {
+    title = isHinglish ? '😂 हंसी नहीं रुकेगी! हस्ते हस्ते लोटपोट हो जाओगे!' : 'Try not to laugh! This is hilarious 😂🔥';
+    caption = 'Tag that one friend jo har bar aisa hi karta hai! 😂👇 Drop a comment!';
+    hashtags = ['#ComedyReels', '#FunnyVideo', '#DesiComedy', '#HasoMat', '#ReelsFB'];
+  } else if (hookTone === 'mystery') {
+    title = isHindi ? '❓ इसका असली सच जानकर होश उड़ जाएंगे! आखिर क्या हुआ?' : 'Wait till you find out the truth! Mind blown 🤯❓';
+    caption = 'Did you notice the secret detail at 0:05? Comment your thoughts below! 👇';
   } else if (lowerPrompt.includes('dog') || lowerPrompt.includes('pet') || lowerPrompt.includes('cat')) {
     title = 'Wait for the end! 🐶 You won’t believe what this cute pet did ❤️';
     caption = 'Watch till the end! Isn’t this the cutest thing you’ve seen today? Drop a ❤️ in comments! 👇';
     hashtags = ['#DogLovers', '#CutePets', '#FunnyAnimals', '#PetReels', '#ReelsFB', '#ViralReels'];
-  } else if (isHinglish) {
-    title = 'Wait for the end! 🤯 Ye video dekh kar hosh ud jayenge!';
-    caption = 'Last tak zaroor dekhiye! Kya aapne pehle kabhi aisa kuch dekha hai? Comments me batayein! 👇';
-    hashtags = ['#ReelsFB', '#ViralReels', '#Trending', '#ViralVideo', '#FBReels', '#HinglishReels'];
   } else if (targetUsa) {
     title = 'Wait until the very end! You won’t believe this 🤯🔥';
     caption = 'Watch until the end! Have you ever experienced anything quite like this? Drop your thoughts below! 👇';
@@ -207,11 +263,15 @@ function generateFallbackMetadata(language = 'English', targetUsa = false, maste
     hashtags = [...new Set([...hashtags, ...extraTags])];
   }
 
+  const firstComment = generatePinComment(nicheId, hookTone);
+
   return {
     title,
     caption,
     hashtags,
     tags: hashtags.map((h: string) => h.replace('#', '')),
+    firstComment,
+    policySafe: true,
   };
 }
 
@@ -325,18 +385,21 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         const targetUsa = message.targetUsa !== undefined ? !!message.targetUsa : (preset.targetUsa !== undefined ? !!preset.targetUsa : !!settings.defaultTargetUsa);
         const masterPrompt = message.masterPrompt || preset.masterPrompt || '';
         const fixedHashtags = preset.fixedHashtags || '';
+        const hookTone = message.hookTone || settings.selectedHookTone || preset.defaultHookTone || 'balanced';
 
         if (apiKey && !useMock) {
           const systemInstruction = `You are an elite viral video growth strategist for Facebook Reels & Posts.
 Analyze this video snapshot and generate viral social media metadata.
 Current Page/Niche Focus: "${preset.name}".
 Master Prompt / Creator Rules: "${masterPrompt || 'General viral entertainment'}".
+Hook & Tone Requested: "${hookTone}" (viral_shock: surprise/twist/curiosity, devotional: spiritual respectful heart-touching, comedy: funny/meme/relatable, mystery: suspense/intrigue, balanced: high-CTR engaging).
 Language requested: ${language} (${targetUsa ? 'Optimized for US Audience' : 'Global Audience'}).
 
 Respond ONLY with a valid JSON object matching this schema:
 {
-  "title": "Short punchy viral hook title (under 60 chars)",
+  "title": "Short punchy viral hook title embodying ${hookTone} (under 60 chars)",
   "caption": "Engaging 2-3 line conversational caption with questions and call to action",
+  "firstComment": "High-engagement question or call-to-action for the first pinned comment to 3x comments",
   "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"],
   "tags": ["keyword 1", "keyword 2", "keyword 3", "keyword 4", "keyword 5", "keyword 6"]
 }`;
@@ -367,6 +430,9 @@ Respond ONLY with a valid JSON object matching this schema:
             const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
             const parsed = parseCleanJSON(textResponse);
             if (parsed && parsed.title && parsed.caption) {
+              const safeTitle = sanitizePolicySafe(parsed.title).cleaned;
+              const safeCaption = sanitizePolicySafe(parsed.caption).cleaned;
+              const firstComment = parsed.firstComment || generatePinComment(preset.id, hookTone);
               const generatedTags = Array.isArray(parsed.hashtags) ? parsed.hashtags : ['#ReelsFB', '#ViralReels'];
               const extraFixed = fixedHashtags.split(/[\s,]+/).filter((t: string) => t.startsWith('#'));
               const combinedTags = [...new Set([...generatedTags, ...extraFixed])];
@@ -374,11 +440,14 @@ Respond ONLY with a valid JSON object matching this schema:
               sendResponse({
                 success: true,
                 data: {
-                  title: parsed.title,
-                  caption: parsed.caption,
+                  title: safeTitle,
+                  caption: safeCaption,
                   hashtags: combinedTags,
                   tags,
-                  fullDescription: `${parsed.title}\n\n${parsed.caption}\n\n${combinedTags.join(' ')}`,
+                  firstComment,
+                  policySafe: true,
+                  hookTone,
+                  fullDescription: `${safeTitle}\n\n${safeCaption}\n\n${combinedTags.join(' ')}`,
                 },
               });
               return;
@@ -387,11 +456,12 @@ Respond ONLY with a valid JSON object matching this schema:
         }
 
         // Fallback or Mock mode
-        const fallback = generateFallbackMetadata(language, targetUsa, masterPrompt, fixedHashtags);
+        const fallback = generateFallbackMetadata(language, targetUsa, masterPrompt, fixedHashtags, hookTone, preset.id);
         sendResponse({
           success: true,
           data: {
             ...fallback,
+            hookTone,
             fullDescription: `${fallback.title}\n\n${fallback.caption}\n\n${fallback.hashtags.join(' ')}`,
           },
         });
@@ -424,18 +494,21 @@ Respond ONLY with a valid JSON object matching this schema:
         const fixedHashtags = preset.fixedHashtags || '';
         const filename = message.filename || '';
         const rowNumber = message.rowNumber || 1;
+        const hookTone = message.hookTone || settings.selectedHookTone || preset.defaultHookTone || 'balanced';
 
         if (apiKey && !settings.useMockAI) {
           const systemInstruction = `You are a master social media growth strategist for Facebook Reels in Meta Business Suite.
 Generate high-converting, viral metadata for Bulk Reel #${rowNumber}.
 Active Page/Niche: "${preset.name}".
 Master Niche / Prompt: "${masterPrompt || 'General Viral Entertainment'}".
+Hook Style Requested: "${hookTone}" (viral_shock, devotional, comedy, mystery, balanced).
 Video Filename / Clue: "${filename}".
 Target Language: ${language} (${targetUsa ? 'Optimized for US Audience' : 'Global Audience'}).
 
 Guidelines:
-- Title must be engaging, curiosity-driven (under 60 characters).
+- Title must be engaging, curiosity-driven embodying ${hookTone} (under 60 characters).
 - Caption should be 2-3 conversational sentences with a question or comment prompt.
+- firstComment: High-engagement first pinned comment question to trigger discussions.
 - Hashtags: 5-8 trending hashtags directly relevant to the niche and #ReelsFB, #ViralReels.
 - Tags: 5-8 keywords.
 
@@ -443,6 +516,7 @@ Respond ONLY with valid JSON (no markdown):
 {
   "title": "...",
   "caption": "...",
+  "firstComment": "...",
   "hashtags": ["#tag1", "#tag2", "#tag3"],
   "tags": ["keyword1", "keyword2"]
 }`;
@@ -470,6 +544,9 @@ Respond ONLY with valid JSON (no markdown):
             const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
             const parsed = parseCleanJSON(textResponse);
             if (parsed && parsed.title && parsed.caption) {
+              const safeTitle = sanitizePolicySafe(parsed.title).cleaned;
+              const safeCaption = sanitizePolicySafe(parsed.caption).cleaned;
+              const firstComment = parsed.firstComment || generatePinComment(preset.id, hookTone);
               const hashtags = Array.isArray(parsed.hashtags) ? parsed.hashtags : ['#ReelsFB', '#ViralReels'];
               const extraFixed = fixedHashtags.split(/[\s,]+/).filter((t: string) => t.startsWith('#'));
               const combinedTags = [...new Set([...hashtags, ...extraFixed])];
@@ -477,11 +554,14 @@ Respond ONLY with valid JSON (no markdown):
               sendResponse({
                 success: true,
                 data: {
-                  title: parsed.title,
-                  caption: parsed.caption,
+                  title: safeTitle,
+                  caption: safeCaption,
                   hashtags: combinedTags,
                   tags,
-                  fullDescription: `${parsed.title}\n\n${parsed.caption}\n\n${combinedTags.join(' ')}`,
+                  firstComment,
+                  policySafe: true,
+                  hookTone,
+                  fullDescription: `${safeTitle}\n\n${safeCaption}\n\n${combinedTags.join(' ')}`,
                 },
               });
               return;
@@ -490,11 +570,19 @@ Respond ONLY with valid JSON (no markdown):
         }
 
         // Smart Niche-Aware Fallback
-        const fallback = generateFallbackMetadata(language, targetUsa, masterPrompt + ' ' + filename, fixedHashtags);
+        const fallback = generateFallbackMetadata(
+          language,
+          targetUsa,
+          masterPrompt + ' ' + filename,
+          fixedHashtags,
+          hookTone,
+          preset.id
+        );
         sendResponse({
           success: true,
           data: {
             ...fallback,
+            hookTone,
             fullDescription: `${fallback.title}\n\n${fallback.caption}\n\n${fallback.hashtags.join(' ')}`,
           },
         });

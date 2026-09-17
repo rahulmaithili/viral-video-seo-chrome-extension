@@ -1,5 +1,7 @@
 import { SupportedLanguage } from './video';
 
+export type HookTone = 'viral_shock' | 'devotional' | 'comedy' | 'mystery' | 'balanced';
+
 export interface NichePreset {
   id: string;
   name: string;
@@ -8,6 +10,7 @@ export interface NichePreset {
   language: SupportedLanguage;
   targetUsa: boolean;
   fixedHashtags: string;
+  defaultHookTone?: HookTone;
 }
 
 export interface UserSettings {
@@ -28,6 +31,7 @@ export interface UserSettings {
   defaultTemplateStyle: string;
   nichePresets?: NichePreset[];
   activePresetId?: string;
+  selectedHookTone?: HookTone;
 }
 
 export type PresetName =
