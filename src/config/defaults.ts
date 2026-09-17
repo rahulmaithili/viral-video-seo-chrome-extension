@@ -1,4 +1,52 @@
-import { UserSettings, PresetConfig } from '../types/settings';
+import { UserSettings, PresetConfig, NichePreset } from '../types/settings';
+
+export const DEFAULT_NICHE_PRESETS: NichePreset[] = [
+  {
+    id: 'bhakti',
+    name: 'Bhakti & Devotion',
+    pageKeywords: ['bhakti', 'mandir', 'ram', 'mahadev', 'krishna', 'sanatan', 'temple', 'hindu'],
+    masterPrompt: 'Devotional temple darshan, emotional Hindi bhakti hooks, ask devotees to comment Har Har Mahadev or Jai Shree Ram, pure spiritual positive energy.',
+    language: 'Hindi',
+    targetUsa: false,
+    fixedHashtags: '#Bhakti #SanatanDharma #JaiShreeRam #HarHarMahadev #TrendingReels',
+  },
+  {
+    id: 'cute_pets',
+    name: 'Cute Pets & Animals',
+    pageKeywords: ['dog', 'cat', 'puppy', 'pet', 'animal', 'cute'],
+    masterPrompt: 'Cute dog/pet funny moments, emotional human-pet bond, curiosity hook (Wait for the reaction! 🐶), heartwarming conversational captions.',
+    language: 'Hinglish',
+    targetUsa: false,
+    fixedHashtags: '#DogLovers #CutePets #FunnyAnimals #PetReels #ViralReels',
+  },
+  {
+    id: 'desi_village',
+    name: 'Desi Village Life',
+    pageKeywords: ['village', 'desi', 'gaon', 'culture', 'kisan', 'lifestyle'],
+    masterPrompt: 'Authentic Indian village life, pure desi culture, nostalgic memories of gaon, asking viewers which village or state they belong to.',
+    language: 'Hindi',
+    targetUsa: false,
+    fixedHashtags: '#VillageLife #DesiCulture #GaonKiZindagi #IncredibleIndia #DesiReels',
+  },
+  {
+    id: 'funny_comedy',
+    name: 'Comedy & Entertainment',
+    pageKeywords: ['funny', 'comedy', 'humor', 'entertainment', 'meme', 'haso'],
+    masterPrompt: 'Relatable situational comedy, funny laughter hooks, lighthearted teasing, asking friends to tag someone who does this.',
+    language: 'Hinglish',
+    targetUsa: false,
+    fixedHashtags: '#ComedyReels #FunnyVideo #DesiComedy #HasoMat #TrendingHumor',
+  },
+  {
+    id: 'usa_viral',
+    name: 'USA Viral & Tech',
+    pageKeywords: ['usa', 'tech', 'gadget', 'world', 'viral', 'facts'],
+    masterPrompt: 'High-energy American English conversational hook, surprising twist, pacing optimized for US viewers, thought-provoking question.',
+    language: 'English',
+    targetUsa: true,
+    fixedHashtags: '#ViralReels #TrendingNow #ExplorePage #MustWatch #InstaDaily',
+  },
+];
 
 export const DEFAULT_SETTINGS: UserSettings = {
   geminiApiKey: '',
@@ -16,6 +64,8 @@ export const DEFAULT_SETTINGS: UserSettings = {
   autoSkipDuplicates: true,
   customInstructions: '',
   defaultTemplateStyle: 'Viral',
+  nichePresets: DEFAULT_NICHE_PRESETS,
+  activePresetId: 'bhakti',
 };
 
 export const AVAILABLE_GEMINI_MODELS = [

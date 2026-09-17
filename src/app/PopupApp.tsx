@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Zap,
   Layers,
@@ -11,16 +11,97 @@ import { useQueueStore } from '../state/queueStore';
 import { ProgressBar } from '../components/common/ProgressBar';
 import { Badge } from '../components/common/Badge';
 import { SupportedLanguage } from '../types/video';
+import { NichePreset } from '../types/settings';
+import { DEFAULT_NICHE_PRESETS } from '../config/defaults';
 
 export const PopupApp: React.FC = () => {
   const { settings, loadSettings, updateSettings } = useSettingsStore();
   const { jobs, initQueue, addVideos } = useQueueStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [activeTabInfo, setActiveTabInfo] = useState<{ isFb: boolean; isMetaBulk: boolean; tabId?: number }>({
+    isFb: false,
+    isMetaBulk: false,
+  });
+  const [isTriggering, setIsTriggering] = useState(false);
+  const [triggerStatus, setTriggerStatus] = useState<string | null>(null);
+  const [saveFeedback, setSaveFeedback] = useState<string | null>(null);
+  const [isEditorExpanded, setIsEditorExpanded] = useState<boolean>(true);
+
   useEffect(() => {
     loadSettings();
     initQueue();
+
+    if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.query) {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const url = tabs[0]?.url || '';
+        const isFb = url.includes('facebook.com') || url.includes('meta.com');
+        const isMetaBulk = url.includes('bulk_upload_composer');
+        setActiveTabInfo({ isFb, isMetaBulk, tabId: tabs[0]?.id });
+      });
+    }
   }, [loadSettings, initQueue]);
+
+  const triggerInPageAutoFill = () => {
+    if (activeTabInfo.tabId && typeof chrome !== 'undefined' && chrome.tabs) {
+      setIsTriggering(true);
+      setTriggerStatus('Generating on Page...');
+      chrome.tabs.sendMessage(activeTabInfo.tabId, { type: 'TRIGGER_AUTO_FILL_ALL' }, () => {
+        setIsTriggering(false);
+        setTriggerStatus('✓ Generated on Page!');
+        setTimeout(() => setTriggerStatus(null), 3500);
+      });
+    }
+  };
+
+  const presets: NichePreset[] =
+    settings.nichePresets && settings.nichePresets.length > 0 ? settings.nichePresets : DEFAULT_NICHE_PRESETS;
+  const activePresetId = settings.activePresetId || presets[0]?.id || 'bhakti';
+  const activePreset = presets.find((p) => p.id === activePresetId) || presets[0];
+
+  const handleSelectPreset = (id: string) => {
+    updateSettings({ activePresetId: id });
+    setSaveFeedback('✓ Prompt enabled for Facebook!');
+    setTimeout(() => setSaveFeedback(null), 2500);
+  };
+
+  const handleUpdateActivePresetField = (field: keyof NichePreset, value: any) => {
+    const updated = presets.map((p) => {
+      if (p.id === activePresetId) {
+        return { ...p, [field]: value };
+      }
+      return p;
+    });
+    updateSettings({ nichePresets: updated });
+    setSaveFeedback('✓ Auto-saved');
+    setTimeout(() => setSaveFeedback(null), 2000);
+  };
+
+  const handleAddNewPreset = () => {
+    const newId = `custom_${Date.now()}`;
+    const newPreset: NichePreset = {
+      id: newId,
+      name: `Page / Niche #${presets.length + 1}`,
+      pageKeywords: [],
+      masterPrompt: 'Devotional / Funny / Informative reel hook, relatable caption, viral hashtags...',
+      language: settings.defaultLanguage || 'Hindi',
+      targetUsa: !!settings.defaultTargetUsa,
+      fixedHashtags: '#TrendingReels #ViralReels',
+    };
+    const updated = [...presets, newPreset];
+    updateSettings({ nichePresets: updated, activePresetId: newId });
+    setIsEditorExpanded(true);
+    setSaveFeedback('✓ New Prompt Created & Enabled!');
+    setTimeout(() => setSaveFeedback(null), 3000);
+  };
+
+  const handleDeletePreset = (id: string) => {
+    const filtered = presets.filter((p) => p.id !== id);
+    const nextActive = activePresetId === id ? filtered[0]?.id || 'bhakti' : activePresetId;
+    updateSettings({ nichePresets: filtered, activePresetId: nextActive });
+    setSaveFeedback('✓ Prompt deleted');
+    setTimeout(() => setSaveFeedback(null), 2000);
+  };
 
   const total = jobs.length;
   const completed = jobs.filter((j) => j.status === 'COMPLETED').length;
@@ -48,7 +129,7 @@ export const PopupApp: React.FC = () => {
   };
 
   return (
-    <div className="w-[380px] bg-[#0B0F19] text-gray-100 p-4 space-y-4 font-sans border border-gray-800 rounded-none select-none">
+    <div className="w-[380px] max-h-[600px] overflow-y-auto bg-[#0B0F19] text-gray-100 p-3.5 space-y-3 font-sans border border-gray-800 select-none">
       {/* Hidden File Input */}
       <input
         type="file"
@@ -60,7 +141,7 @@ export const PopupApp: React.FC = () => {
       />
 
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-gray-800 pb-3">
+      <div className="flex items-center justify-between border-b border-gray-800 pb-2.5">
         <div className="flex items-center space-x-2.5">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-brand-600 to-purple-400 p-0.5 flex items-center justify-center shadow-md shadow-brand-500/20">
             <div className="w-full h-full bg-[#0B0F19] rounded-[6px] flex items-center justify-center">
@@ -85,34 +166,211 @@ export const PopupApp: React.FC = () => {
         </button>
       </div>
 
-      {/* Quick Controls Bar */}
-      <div className="grid grid-cols-2 gap-2 text-xs">
-        {/* Language */}
-        <div className="bg-gray-900/90 border border-gray-800 rounded-lg p-2">
-          <span className="text-[10px] text-gray-400 block mb-0.5">LANGUAGE</span>
-          <select
-            value={settings.defaultLanguage}
-            onChange={(e) => updateSettings({ defaultLanguage: e.target.value as SupportedLanguage })}
-            className="w-full bg-transparent text-white font-semibold outline-none cursor-pointer text-xs"
-          >
-            <option value="English" className="bg-gray-900">English</option>
-            <option value="Hindi" className="bg-gray-900">Hindi (हिन्दी)</option>
-            <option value="Hinglish" className="bg-gray-900">Hinglish</option>
-          </select>
-        </div>
-
-        {/* USA Toggle */}
-        <div className="bg-gray-900/90 border border-gray-800 rounded-lg p-2">
-          <span className="text-[10px] text-gray-400 block mb-0.5">TARGET USA</span>
+      {/* Live Facebook / Meta In-Page Detector Card */}
+      {activeTabInfo.isFb && (
+        <div className="bg-gradient-to-r from-brand-950 via-purple-950 to-indigo-950 border-2 border-brand-500/80 rounded-xl p-3 space-y-2 shadow-lg shadow-brand-500/20">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-brand-400" />
+              <span className="text-xs font-black text-white">
+                {activeTabInfo.isMetaBulk ? 'Meta Bulk Upload Reels' : 'Facebook Video Creator'}
+              </span>
+            </div>
+            <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold">
+              CONNECTED
+            </span>
+          </div>
+          <p className="text-[11px] text-brand-200 leading-snug">
+            {activeTabInfo.isMetaBulk
+              ? 'Bulk reels detected on this tab! Generate title & hashtags for all reels with 1 click.'
+              : 'Reels detected! Click below to auto-fill title, caption & tags on this page.'}
+          </p>
           <button
-            onClick={() => updateSettings({ defaultTargetUsa: !settings.defaultTargetUsa })}
-            className={`w-full text-left font-bold transition-colors ${
-              settings.defaultTargetUsa ? 'text-sky-400' : 'text-gray-400'
-            }`}
+            onClick={triggerInPageAutoFill}
+            disabled={isTriggering}
+            className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-brand-600 to-purple-600 hover:from-brand-500 hover:to-purple-500 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center space-x-1.5 active:scale-95 disabled:opacity-75"
           >
-            {settings.defaultTargetUsa ? 'ON (US Audience)' : 'OFF (Global)'}
+            <Zap className="w-3.5 h-3.5 fill-current text-yellow-300" />
+            <span>{triggerStatus || (activeTabInfo.isMetaBulk ? '⚡ Auto-Fill All Bulk Reels Now' : '⚡ Auto-Fill Reel on Page')}</span>
           </button>
         </div>
+      )}
+
+      {/* Master Prompts & Radio Selection */}
+      <div className="bg-gradient-to-b from-gray-900 via-gray-900/90 to-[#0F172A] border border-purple-500/50 rounded-xl p-3 space-y-2.5 shadow-lg shadow-purple-950/40">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-1.5">
+            <span className="text-sm">🎯</span>
+            <div>
+              <h2 className="text-xs font-black text-white uppercase tracking-wider">Master Prompts (Radio Select)</h2>
+              <span className="text-[9px] text-purple-300 block">Jo radio button ON hoga, AI usi prompt se metadata banayega</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleAddNewPreset}
+            className="text-[10px] bg-purple-900/80 hover:bg-purple-800 text-purple-200 border border-purple-500/50 px-2 py-1 rounded-md font-bold transition-all flex items-center gap-1 active:scale-95"
+            title="Naya Page Niche / Prompt Add Karein"
+          >
+            <span>+ Add Prompt</span>
+          </button>
+        </div>
+
+        {/* Radio List */}
+        <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+          {presets.map((p) => {
+            const isSelected = p.id === activePresetId;
+            return (
+              <label
+                key={p.id}
+                onClick={() => handleSelectPreset(p.id)}
+                className={`flex items-center justify-between p-2 rounded-lg cursor-pointer border transition-all ${
+                  isSelected
+                    ? 'bg-purple-950/60 border-purple-500 text-white shadow-sm shadow-purple-500/20'
+                    : 'bg-gray-950/60 border-gray-800 text-gray-300 hover:border-gray-700'
+                }`}
+              >
+                <div className="flex items-center space-x-2 truncate">
+                  <input
+                    type="radio"
+                    name="master_prompt_radio"
+                    checked={isSelected}
+                    onChange={() => handleSelectPreset(p.id)}
+                    className="w-3.5 h-3.5 text-purple-600 bg-gray-900 border-gray-700 focus:ring-purple-500 cursor-pointer"
+                  />
+                  <span className="text-xs font-bold truncate">{p.name}</span>
+                </div>
+                <div className="flex items-center space-x-1.5 flex-shrink-0">
+                  {isSelected ? (
+                    <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-1.5 py-0.5 rounded font-extrabold flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> ENABLED
+                    </span>
+                  ) : (
+                    <span className="text-[9px] text-gray-500">Enable</span>
+                  )}
+                  {p.id.startsWith('custom_') && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeletePreset(p.id);
+                      }}
+                      className="text-gray-500 hover:text-red-400 px-1 font-bold"
+                      title="Delete Prompt"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              </label>
+            );
+          })}
+        </div>
+
+        {/* Active Prompt Editor Box */}
+        {activePreset && (
+          <div className="bg-[#050811] border border-purple-900/60 rounded-lg p-2.5 space-y-2">
+            <div className="flex items-center justify-between border-b border-gray-800/80 pb-1.5">
+              <span className="text-[10px] font-bold text-purple-300 uppercase tracking-wider flex items-center gap-1 truncate">
+                <span>✍️</span> Edit Active Master Prompt ({activePreset.name})
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsEditorExpanded(!isEditorExpanded)}
+                className="text-[10px] text-gray-400 hover:text-white flex-shrink-0"
+              >
+                {isEditorExpanded ? 'Collapse ▲' : 'Expand ▼'}
+              </button>
+            </div>
+
+            {isEditorExpanded && (
+              <div className="space-y-2 pt-0.5">
+                <div>
+                  <label className="text-[9px] text-gray-400 block mb-1 font-semibold">
+                    PAGE / NICHE NAME:
+                  </label>
+                  <input
+                    type="text"
+                    value={activePreset.name}
+                    onChange={(e) => handleUpdateActivePresetField('name', e.target.value)}
+                    placeholder="e.g. Mahadev Bhakti 24/7 or Cute Puppy Videos"
+                    className="w-full bg-[#0B0F19] border border-gray-700 focus:border-purple-500 rounded-md py-1 px-2 text-xs text-white outline-none font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[9px] text-gray-400 block mb-1 font-semibold">
+                    MASTER PROMPT (AI Instructions for this Page):
+                  </label>
+                  <textarea
+                    value={activePreset.masterPrompt}
+                    onChange={(e) => handleUpdateActivePresetField('masterPrompt', e.target.value)}
+                    rows={3}
+                    placeholder="Apna master prompt yahan likhein (e.g. Bhakti hook, emotional voiceover, comment call to action...)"
+                    className="w-full bg-[#0B0F19] border border-gray-700 focus:border-purple-500 rounded-md p-2 text-xs text-white outline-none resize-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[9px] text-gray-400 block mb-1 font-semibold">
+                    FIXED HASHTAGS (Reels me automatic judenge):
+                  </label>
+                  <input
+                    type="text"
+                    value={activePreset.fixedHashtags || ''}
+                    onChange={(e) => handleUpdateActivePresetField('fixedHashtags', e.target.value)}
+                    placeholder="#Bhakti #JaiShreeRam #ViralReels"
+                    className="w-full bg-[#0B0F19] border border-gray-700 focus:border-purple-500 rounded-md py-1 px-2 text-xs text-white outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                  <div className="bg-[#0B0F19] border border-gray-800 rounded p-1.5">
+                    <span className="text-[9px] text-gray-400 block mb-0.5">LANGUAGE</span>
+                    <select
+                      value={activePreset.language || 'Hindi'}
+                      onChange={(e) => handleUpdateActivePresetField('language', e.target.value as SupportedLanguage)}
+                      className="w-full bg-transparent text-white font-semibold outline-none cursor-pointer text-xs"
+                    >
+                      <option value="Hindi" className="bg-gray-900">Hindi (हिन्दी)</option>
+                      <option value="Hinglish" className="bg-gray-900">Hinglish</option>
+                      <option value="English" className="bg-gray-900">English</option>
+                    </select>
+                  </div>
+
+                  <div className="bg-[#0B0F19] border border-gray-800 rounded p-1.5">
+                    <span className="text-[9px] text-gray-400 block mb-0.5">AUDIENCE</span>
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateActivePresetField('targetUsa', !activePreset.targetUsa)}
+                      className={`w-full text-left font-bold text-xs transition-colors ${
+                        activePreset.targetUsa ? 'text-sky-400' : 'text-gray-400'
+                      }`}
+                    >
+                      {activePreset.targetUsa ? 'USA Audience' : 'Global / India'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-1 border-t border-gray-800/60">
+                  <span className="text-[10px] text-emerald-400 font-bold">
+                    {saveFeedback || '✓ Active & Synced with Facebook'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSaveFeedback('✓ All Changes Saved!');
+                      setTimeout(() => setSaveFeedback(null), 2500);
+                    }}
+                    className="text-[10px] bg-purple-600 hover:bg-purple-500 text-white font-bold px-3 py-1 rounded transition-all active:scale-95 shadow-sm"
+                  >
+                    💾 Save Prompt
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Batch Overview & Progress */}

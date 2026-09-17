@@ -1,5 +1,15 @@
 import { SupportedLanguage } from './video';
 
+export interface NichePreset {
+  id: string;
+  name: string;
+  pageKeywords: string[];
+  masterPrompt: string;
+  language: SupportedLanguage;
+  targetUsa: boolean;
+  fixedHashtags: string;
+}
+
 export interface UserSettings {
   geminiApiKey: string;
   geminiModel: string;
@@ -16,6 +26,8 @@ export interface UserSettings {
   autoSkipDuplicates: boolean;
   customInstructions: string;
   defaultTemplateStyle: string;
+  nichePresets?: NichePreset[];
+  activePresetId?: string;
 }
 
 export type PresetName =
