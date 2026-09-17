@@ -5,6 +5,8 @@ import {
   Plus,
   ExternalLink,
   Sparkles,
+  RefreshCw,
+  Download,
 } from 'lucide-react';
 import { useSettingsStore } from '../state/settingsStore';
 import { useQueueStore } from '../state/queueStore';
@@ -13,6 +15,18 @@ import { Badge } from '../components/common/Badge';
 import { SupportedLanguage } from '../types/video';
 import { NichePreset } from '../types/settings';
 import { DEFAULT_NICHE_PRESETS } from '../config/defaults';
+
+interface UpdateInfo {
+  hasUpdate: boolean;
+  currentVersion: string;
+  latestVersion: string;
+  name?: string;
+  changelog: string;
+  downloadUrl: string;
+  repoUrl: string;
+  releaseDate?: string;
+  lastChecked: number;
+}
 
 export const PopupApp: React.FC = () => {
   const { settings, loadSettings, updateSettings } = useSettingsStore();
@@ -27,10 +41,36 @@ export const PopupApp: React.FC = () => {
   const [triggerStatus, setTriggerStatus] = useState<string | null>(null);
   const [saveFeedback, setSaveFeedback] = useState<string | null>(null);
   const [isEditorExpanded, setIsEditorExpanded] = useState<boolean>(true);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState<boolean>(false);
+  const [updateStatusBanner, setUpdateStatusBanner] = useState<string | null>(null);
+
+  const checkUpdateStatus = (manual = false) => {
+    setIsCheckingUpdate(true);
+    if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+      chrome.runtime.sendMessage({ type: 'CHECK_FOR_UPDATES' }, (res) => {
+        setIsCheckingUpdate(false);
+        if (res && res.success && res.data) {
+          setUpdateInfo(res.data);
+          if (manual) {
+            if (res.data.hasUpdate) {
+              setUpdateStatusBanner(`🎉 New version v${res.data.latestVersion} Available!`);
+            } else {
+              setUpdateStatusBanner(`✓ You are on the latest version (v${res.data.currentVersion})!`);
+            }
+            setTimeout(() => setUpdateStatusBanner(null), 3500);
+          }
+        }
+      });
+    } else {
+      setIsCheckingUpdate(false);
+    }
+  };
 
   useEffect(() => {
     loadSettings();
     initQueue();
+    checkUpdateStatus(false);
 
     if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.query) {
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -157,14 +197,75 @@ export const PopupApp: React.FC = () => {
           </div>
         </div>
 
-        <button
-          onClick={openFullDashboard}
-          className="p-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white transition-colors"
-          title="Open Full Dashboard in Tab"
-        >
-          <ExternalLink className="w-4 h-4" />
-        </button>
+        <div className="flex items-center space-x-1.5">
+          <button
+            type="button"
+            onClick={() => checkUpdateStatus(true)}
+            disabled={isCheckingUpdate}
+            className="flex items-center space-x-1 text-[9px] bg-brand-950 text-brand-300 hover:text-white border border-brand-800 hover:border-brand-500 px-1.5 py-1 rounded transition-all active:scale-95 cursor-pointer"
+            title="Check for Remote GitHub Updates"
+          >
+            <RefreshCw className={`w-2.5 h-2.5 ${isCheckingUpdate ? 'animate-spin text-yellow-300' : ''}`} />
+            <span>v3.0.0</span>
+          </button>
+          <button
+            onClick={openFullDashboard}
+            className="p-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white transition-colors"
+            title="Open Full Dashboard in Tab"
+          >
+            <ExternalLink className="w-4 h-4" />
+          </button>
+        </div>
       </div>
+
+      {/* Update Feedback Toast */}
+      {updateStatusBanner && (
+        <div className="bg-emerald-950/90 border border-emerald-500/60 text-emerald-200 text-[11px] px-2.5 py-1.5 rounded-lg text-center font-bold">
+          {updateStatusBanner}
+        </div>
+      )}
+
+      {/* New Update Available Glowing Banner */}
+      {updateInfo && updateInfo.hasUpdate && (
+        <div className="bg-gradient-to-r from-amber-950 via-purple-950 to-indigo-950 border-2 border-amber-400 rounded-xl p-3 space-y-2 shadow-lg shadow-amber-500/30 animate-pulse">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-1.5">
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              <span className="text-xs font-black text-white">
+                🚀 New Update Available: v{updateInfo.latestVersion}
+              </span>
+            </div>
+            <span className="text-[9px] bg-amber-400 text-black font-black px-1.5 py-0.5 rounded">
+              UPDATE
+            </span>
+          </div>
+          <p className="text-[11px] text-amber-100/90 leading-snug">
+            {updateInfo.changelog}
+          </p>
+          <div className="flex items-center gap-2 pt-0.5">
+            <a
+              href={updateInfo.downloadUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="flex-1 py-1.5 px-2 rounded-lg bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-black font-extrabold text-xs shadow-md transition-all flex items-center justify-center space-x-1 active:scale-95 text-center"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Download Update (ZIP)</span>
+            </a>
+            <a
+              href={updateInfo.repoUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="py-1.5 px-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 text-xs font-bold border border-gray-700 text-center"
+            >
+              GitHub
+            </a>
+          </div>
+          <span className="text-[9px] text-gray-400 block text-center">
+            Tip: Extract ZIP & click Reload in chrome://extensions
+          </span>
+        </div>
+      )}
 
       {/* Live Facebook / Meta In-Page Detector Card */}
       {activeTabInfo.isFb && (

@@ -16,3 +16,10 @@ if (fs.existsSync(srcManifest)) {
   console.error('✗ Error: public/manifest.json not found');
   process.exit(1);
 }
+
+const srcVersion = path.resolve('version.json');
+const distVersion = path.resolve('dist', 'version.json');
+if (fs.existsSync(srcVersion)) {
+  fs.copyFileSync(srcVersion, distVersion);
+  console.log('✓ Copied version.json to dist/');
+}

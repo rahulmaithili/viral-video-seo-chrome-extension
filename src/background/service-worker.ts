@@ -3,23 +3,72 @@
  * Brand: Rahul Scripts
  */
 
+const CURRENT_VERSION = '3.0.0';
+const GITHUB_VERSION_URL = 'https://raw.githubusercontent.com/rahulmaithili/viral-video-seo-chrome-extension/main/version.json';
+
+function isNewerVersion(current: string, latest: string): boolean {
+  if (!current || !latest) return false;
+  const c = current.split('.').map((x) => parseInt(x, 10) || 0);
+  const l = latest.split('.').map((x) => parseInt(x, 10) || 0);
+  for (let i = 0; i < Math.max(c.length, l.length); i++) {
+    const cv = c[i] || 0;
+    const lv = l[i] || 0;
+    if (lv > cv) return true;
+    if (lv < cv) return false;
+  }
+  return false;
+}
+
+async function checkRemoteUpdate() {
+  try {
+    const res = await fetch(`${GITHUB_VERSION_URL}?_t=${Date.now()}`, { cache: 'no-cache' });
+    if (res.ok) {
+      const data = await res.json();
+      const hasUpdate = isNewerVersion(CURRENT_VERSION, data.version);
+      const updatePayload = {
+        hasUpdate,
+        currentVersion: CURRENT_VERSION,
+        latestVersion: data.version,
+        name: data.name || 'Rahul Scripts 3.0 PRO',
+        changelog: data.changelog || 'New viral hooks, updated master prompts, and bug fixes.',
+        releaseDate: data.releaseDate || '',
+        downloadUrl: data.downloadUrl || 'https://github.com/rahulmaithili/viral-video-seo-chrome-extension/archive/refs/heads/main.zip',
+        repoUrl: data.repoUrl || 'https://github.com/rahulmaithili/viral-video-seo-chrome-extension',
+        lastChecked: Date.now(),
+      };
+      await chrome.storage.local.set({ rs_extension_update_info: updatePayload });
+      return updatePayload;
+    }
+  } catch (err) {
+    console.warn('[Viral Video AI Studio] Failed to check for remote update:', err);
+  }
+  return null;
+}
+
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === 'install') {
     console.log('Viral Video AI Studio installed successfully.');
-    // Set initial configuration
     chrome.storage.local.set({
       installedAt: Date.now(),
-      version: '3.0.0',
+      version: CURRENT_VERSION,
     });
   }
+  checkRemoteUpdate();
 });
 
-// Periodic alarm for heartbeat / queue health monitoring
+chrome.runtime.onStartup.addListener(() => {
+  checkRemoteUpdate();
+});
+
+// Periodic alarm for heartbeat & checking extension updates (every 60 mins)
 chrome.alarms.create('queue_heartbeat', { periodInMinutes: 5 });
+chrome.alarms.create('check_extension_updates', { periodInMinutes: 60 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === 'queue_heartbeat') {
     // Keep background service healthy without keeping persistent state in memory
+  } else if (alarm.name === 'check_extension_updates') {
+    checkRemoteUpdate();
   }
 });
 
@@ -178,9 +227,33 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     sendResponse({
       name: 'Viral Video AI Studio',
       brand: 'Rahul Scripts',
-      version: '3.0.0',
+      version: CURRENT_VERSION,
     });
     return false;
+  }
+
+  if (message.type === 'CHECK_FOR_UPDATES') {
+    (async () => {
+      const fresh = await checkRemoteUpdate();
+      if (fresh) {
+        sendResponse({ success: true, data: fresh });
+      } else {
+        const stored = await chrome.storage.local.get('rs_extension_update_info');
+        sendResponse({
+          success: true,
+          data: stored?.rs_extension_update_info || {
+            hasUpdate: false,
+            currentVersion: CURRENT_VERSION,
+            latestVersion: CURRENT_VERSION,
+            changelog: '',
+            downloadUrl: 'https://github.com/rahulmaithili/viral-video-seo-chrome-extension/archive/refs/heads/main.zip',
+            repoUrl: 'https://github.com/rahulmaithili/viral-video-seo-chrome-extension',
+            lastChecked: Date.now(),
+          },
+        });
+      }
+    })();
+    return true;
   }
 
   if (message.type === 'GET_NICHE_PRESETS') {
